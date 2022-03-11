@@ -1,3 +1,19 @@
+/*
+ * Copyright (c) 2022 Guilherme Janczak <guilherme.janczak@yandex.com>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
 #include <nds.h>
 
 #include <errno.h>
@@ -6,11 +22,13 @@
 #include <string.h>
 #include <unistd.h>
 
-#define HD(x)	 (swiSHA1Update(&ctx, (char *)&(x), sizeof (x)))
+#include "sha1.h"
+
+#define HD(x)	 (SHA1Update(&ctx, (void *)&(x), sizeof (x)))
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
-static unsigned char results[20];
+static unsigned char results[SHA1_DIGEST_LENGTH];
 static int runs;
 
 static void clear_results(void);
@@ -19,8 +37,8 @@ int
 arm7_getentropy(void *_buf, size_t buflen)
 {
 	unsigned char *buf = _buf;
-	int i, j;
-	swiSHA1context_t ctx;
+	int nw, i;
+	SHA1_CTX ctx;
 	uint16_t tmp16;
 	RTCtime time;
 	void *p;
@@ -37,19 +55,18 @@ arm7_getentropy(void *_buf, size_t buflen)
 
 	if (runs == 0)
 		atexit(clear_results);
-	runs++;
 
 	/*
 	 * XXX: The great majority of entropy sources are extremely likely to
 	 * return the exact same result each loop iteration.
 	 */
-	for (i = 0; i < buflen; i += MIN(buflen-i, sizeof(results))) {
-		swiSHA1Init(&ctx);
-		for (j = 0; j < (sizeof(tscs) / sizeof(tscs[0])); j++) {
-			tmp16 = touchRead(tscs[j]);
+	for (nw = 0; nw < buflen; nw += MIN(buflen-nw, sizeof(results))) {
+		SHA1Init(&ctx);
+		for (i = 0; i < (sizeof(tscs) / sizeof(tscs[0])); i++) {
+			tmp16 = touchRead(tscs[i]);
 			HD(tmp16);
 		}
-		rtcGetTimeAndDate(&time);
+		rtcGetTimeAndDate((void *)&time);
 		HD(time);
 
 		tmp16 = REG_SOUNDCNT;
@@ -57,32 +74,46 @@ arm7_getentropy(void *_buf, size_t buflen)
 		tmp16 = REG_KEYXY;
 		HD(tmp16);
 
-		HD(*PersonalData);
-
-		/*
-		 * We don't have ASLR, but the address of this function might
-		 * still be different between projects.
-		 */
-		HD(arm7_getentropy);
-
-		/* Stack address. */
-		HD(p);
-
-		/* Deliberately uninitialized when i == 0. */
 		HD(results);
 
-		swiSHA1Final(results, &ctx);
-		memcpy(buf+i, results, MIN(buflen-i, sizeof(results)));
+		/*
+		 * Everything that doesn't ever vary between loop iterations
+		 * goes here.
+		 */
+		if (nw == 0) {
+			/*
+			 * Whatever garbage is in the stack. This is UB, but
+			 * this program only runs in 1 implementation and the
+			 * trick works there.
+			 */
+			HD(p);
+
+			/* Stack address. */
+			p = &p;
+			HD(p);
+
+			HD(buflen);
+		}
+		/*
+		 * All the invariants go here. They don't vary during the
+		 * program's lifetime, or even ever within the same program.
+		 */
+		if (runs == 0) {
+			/*
+			 * We don't have ASLR, but the address of this function
+			 * might still be different between projects.
+			 */
+			HD(arm7_getentropy);
+
+			HD(*PersonalData);
+		}
+
+		SHA1Final(results, &ctx);
+		memcpy(buf+nw, results, MIN(buflen-nw, sizeof(results)));
+		runs++;
 	}
 
 	explicit_bzero(&ctx, sizeof(ctx));
-#if 0
-	/*
-	 * XXX: I'm leaving `results` statically allocated and uncleared in a
-	 * desperate attempt to get different results between every call.
-	 */
-	explicit_bzero(results, sizeof(results));
-#endif
 
 	return (0);
 }

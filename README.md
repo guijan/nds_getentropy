@@ -16,9 +16,8 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ![](./IMG_20220308_224836_HDR.jpg)
 
-## libnds_getentropy: getentropy() for the Nintendo DS and DSi
-The library only runs on the DSi at the moment because I've taken a shortcut by
-using the SHA1 functions which are only present in the DSi firmware.
+# libnds_getentropy: getentropy() for the Nintendo DS and DSi
+Currently, the library isn't considered ready for use, but it works.
 
 ## Usage
 Link in the library in your ARM7 code BEFORE all the devkitPro libraries you
@@ -42,9 +41,25 @@ main(void)
 	...
 }
 ```
+Make sure you initialize the hardware properly like the default ARM7 program
+does.
 
 The interface is almost the same as the BSD `getentropy()`:
 https://man.openbsd.org/getentropy.2
 
 The only difference is that `getentropy()` can be called from anywhere, whereas
 `arm7_getentropy()` may only be called from the ARM7.
+
+## TODO
+While writing a previous version that was never commited to git, I used my
+example code to debug and saw that the result would only change once a second.
+It seems some entropy sources don't actually work, I need to write a separate
+program to print them and see what's wrong.
+
+The example's output is wrong under DeSmuME:
+![](./desmume_screenshot.png)
+
+Why does it print all zeroes? A SHA1 hash of a buffer full of zeroes isn't all
+zeroes, so even if the time of day or the temperature were 0, the returned
+entropy wouldn't be 0. As it currently stands, the library doesn't work under
+DeSmuME.

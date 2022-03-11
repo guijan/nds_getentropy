@@ -65,13 +65,13 @@ install: dist-bin
 #-------------------------------------------------------------------------------
 	mkdir -p "$(DESTDIR)$(DEVKITPRO)/libnds"
 	gzip -dc "$(PROJ)-bin-$(VERSION).tgz"				\
-		| (cd "$(DESTDIR)$(DEVKITPRO)/libnds" && pax -s '|[^/]*|.|' -r)
+		| (cd "$(DESTDIR)$(DEVKITPRO)" && pax -s '|[^/]*|.|' -r)
 
 #-------------------------------------------------------------------------------
 uninstall:
 #-------------------------------------------------------------------------------
 	rm -rf '$(DESTDIR)$(DEVKITPRO)/libnds/include/nds_getentropy.h' \
 	    '$(DESTDIR)$(DEVKITPRO)/libnds/lib/libnds_getentropy7.a' \
-	    '$(DESTDIR)$(DEVKITPRO)/libnds/lib/libnds_getentropy_license.txt' \
-	    '$(DESTDIR)$(DEVKITPRO)/libnds/lib/libnds_getentropy_readme.txt'  \
+	    '$(DESTDIR)$(DEVKITPRO)/libnds/libnds_getentropy_license.txt' \
+	    '$(DESTDIR)$(DEVKITPRO)/libnds/libnds_getentropy_readme.txt'  \
 	    '$(DESTDIR)$(DEVKITPRO)/examples/nds/libnds_getentropy'
